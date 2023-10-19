@@ -16,22 +16,22 @@ public class Scanner {
   /**
    * Mapping from keyword names to appropriate token codes.
    */
-  private static final Map<String, Token.Kind> keywords;
+  private static final Map<String, Token.Kind> KEYWORDS;
 
   static {
-    keywords = new HashMap<>();
-    keywords.put(Token.Kind.class_.label(), Token.Kind.class_);
-    keywords.put(Token.Kind.program.label(), Token.Kind.program);
-    keywords.put(Token.Kind.print.label(), Token.Kind.print);
-    keywords.put(Token.Kind.break_.label(), Token.Kind.break_);
-    keywords.put(Token.Kind.final_.label(), Token.Kind.final_);
-    keywords.put(Token.Kind.else_.label(), Token.Kind.else_);
-    keywords.put(Token.Kind.if_.label(), Token.Kind.if_);
-    keywords.put(Token.Kind.new_.label(), Token.Kind.new_);
-    keywords.put(Token.Kind.read.label(), Token.Kind.read);
-    keywords.put(Token.Kind.return_.label(), Token.Kind.return_);
-    keywords.put(Token.Kind.void_.label(), Token.Kind.void_);
-    keywords.put(Token.Kind.while_.label(), Token.Kind.while_);
+    KEYWORDS = new HashMap<>();
+    KEYWORDS.put(Token.Kind.class_.label(), Token.Kind.class_);
+    KEYWORDS.put(Token.Kind.program.label(), Token.Kind.program);
+    KEYWORDS.put(Token.Kind.print.label(), Token.Kind.print);
+    KEYWORDS.put(Token.Kind.break_.label(), Token.Kind.break_);
+    KEYWORDS.put(Token.Kind.final_.label(), Token.Kind.final_);
+    KEYWORDS.put(Token.Kind.else_.label(), Token.Kind.else_);
+    KEYWORDS.put(Token.Kind.if_.label(), Token.Kind.if_);
+    KEYWORDS.put(Token.Kind.new_.label(), Token.Kind.new_);
+    KEYWORDS.put(Token.Kind.read.label(), Token.Kind.read);
+    KEYWORDS.put(Token.Kind.return_.label(), Token.Kind.return_);
+    KEYWORDS.put(Token.Kind.void_.label(), Token.Kind.void_);
+    KEYWORDS.put(Token.Kind.while_.label(), Token.Kind.while_);
   }
 
   /**
@@ -314,7 +314,7 @@ public class Scanner {
     }
 
     t.val = sb.toString();
-    t.kind = keywords.getOrDefault(t.val, Token.Kind.ident);
+    t.kind = KEYWORDS.getOrDefault(t.val, Token.Kind.ident);
   }
 
   public void readNumber(Token t) {
