@@ -6,7 +6,8 @@ import ssw.mj.scanner.Token;
 
 import java.util.EnumSet;
 
-import static ssw.mj.scanner.Token.Kind.none;
+import static ssw.mj.scanner.Token.Kind.*;
+import static ssw.mj.Errors.Message.*;
 
 public final class Parser {
 
@@ -25,10 +26,10 @@ public final class Parser {
    */
   private static final int MAX_LOCALS = 127;
   // definition of beginning tokens for specific sets
-  private static final EnumSet<Token.Kind> firstStatement = EnumSet.of(Token.Kind.ident, Token.Kind.if_, Token.Kind.while_, Token.Kind.break_, Token.Kind.return_, Token.Kind.read, Token.Kind.print, Token.Kind.lbrace, Token.Kind.semicolon);
-  private static final EnumSet<Token.Kind> firstAssingop = EnumSet.of(Token.Kind.assign, Token.Kind.plusas, Token.Kind.minusas, Token.Kind.timesas, Token.Kind.slashas, Token.Kind.remas);
-  private static final EnumSet<Token.Kind> firstExpr = EnumSet.of(Token.Kind.minus, Token.Kind.ident, Token.Kind.number, Token.Kind.charConst, Token.Kind.new_, Token.Kind.lpar);
-  private static final EnumSet<Token.Kind> firstRelop = EnumSet.of(Token.Kind.eql, Token.Kind.neq, Token.Kind.gtr, Token.Kind.geq, Token.Kind.lss, Token.Kind.leq);
+  private static final EnumSet<Token.Kind> firstStatement = EnumSet.of(ident, if_, while_, break_, return_, read, print, lbrace, semicolon);
+  private static final EnumSet<Token.Kind> firstAssingop = EnumSet.of(assign, plusas, minusas, timesas, slashas, remas);
+  private static final EnumSet<Token.Kind> firstExpr = EnumSet.of(minus, ident, number, charConst, new_, lpar);
+  private static final EnumSet<Token.Kind> firstRelop = EnumSet.of(eql, neq, gtr, geq, lss, leq);
   /**
    * According scanner
    */
@@ -90,7 +91,7 @@ public final class Parser {
     if (sym == expected) {
       scan();
     } else {
-      error(Errors.Message.TOKEN_EXPECTED, expected);
+      error(TOKEN_EXPECTED, expected);
     }
   }
 
@@ -110,14 +111,14 @@ public final class Parser {
   public void parse() {
     scan();
     Program();
-    check(Token.Kind.eof);
+    check(eof);
   }
 
   private void Program() {
-    check(Token.Kind.program);
-    check(Token.Kind.ident);
+    check(program);
+    check(ident);
 
-    while (sym != Token.Kind.lbrace) {
+    while (sym == final_ || sym == ident || sym == class_) {
       switch (sym) {
         case class_ -> ClassDecl();
         case ident -> VarDecl();
@@ -125,90 +126,90 @@ public final class Parser {
       }
     }
 
-    check(Token.Kind.lbrace);
-    while (sym != Token.Kind.rbrace) {
+    check(lbrace);
+    while (sym == ident || sym == void_) {
       MethodDecl();
     }
-    check(Token.Kind.rbrace);
+    check(rbrace);
   }
 
   private void MethodDecl() {
     switch (sym) {
       case void_ -> scan();
       case ident -> Type();
-      default -> error(Errors.Message.INVALID_METH_DECL);
+      default -> error(INVALID_METH_DECL);
     }
 
 
-    check(Token.Kind.ident);
-    check(Token.Kind.lpar);
-    while (sym != Token.Kind.rpar) {
+    check(ident);
+    check(lpar);
+    if (sym == ident) {
       FormPars();
     }
 
-    check(Token.Kind.rpar);
-    while (sym != Token.Kind.lbrace) {
+    check(rpar);
+    while (sym == ident) {
       VarDecl();
     }
     Block();
   }
 
   void Type() {
-    check(Token.Kind.ident);
-    if (sym == Token.Kind.lbrack) {
+    check(ident);
+    if (sym == lbrack) {
       scan();
-      check(Token.Kind.rbrack);
+      check(rbrack);
     }
   }
 
   private void ClassDecl() {
-    check(Token.Kind.class_);
-    check(Token.Kind.ident);
-    check(Token.Kind.lbrace);
-    while (sym != Token.Kind.rbrace) {
+    check(class_);
+    check(ident);
+    check(lbrace);
+    while (sym == ident) {
       VarDecl();
     }
-    check(Token.Kind.rbrace);
+    check(rbrace);
   }
 
   void ConstDecl() {
-    check(Token.Kind.final_);
+    check(final_);
     Type();
-    check(Token.Kind.ident);
-    check(Token.Kind.assign);
+    check(ident);
+    check(assign);
     switch (sym) {
       case number, charConst -> scan();
-      default -> error(Errors.Message.CONST_DECL);
+      default -> error(CONST_DECL);
     }
-    check(Token.Kind.semicolon);
+    check(semicolon);
   }
 
   private void VarDecl() {
     Type();
-    check(Token.Kind.ident);
-    while (sym == Token.Kind.comma) {
+    check(ident);
+    while (sym == comma) {
       scan();
-      check(Token.Kind.ident);
+      check(ident);
     }
-    check(Token.Kind.semicolon);
+    check(semicolon);
   }
 
   private void FormPars() {
     Type();
-    check(Token.Kind.ident);
-    while (sym == Token.Kind.comma) {
+    check(ident);
+    while (sym == comma) {
       scan();
       Type();
-      check(Token.Kind.ident);
+      check(ident);
     }
   }
 
   private void Block() {
-    check(Token.Kind.lbrace);
+    check(lbrace);
     while (firstStatement.contains(sym)) {
       Statement();
     }
-    check(Token.Kind.rbrace);
+    check(rbrace);
   }
 
   private void Assignop() {
@@ -220,7 +221,7 @@ public final class Parser {
     if (firstAssingop.contains(sym)) {
       scan();
     } else {
-      error(Errors.Message.ASSIGN_OP);
+      error(ASSIGN_OP);
     }
   }
 
@@ -228,7 +229,7 @@ public final class Parser {
     if (firstRelop.contains(sym)) {
       scan();
     } else {
-      error(Errors.Message.REL_OP);
+      error(REL_OP);
     }
   }
 
@@ -243,71 +244,71 @@ public final class Parser {
           switch (sym) {
             case lpar -> ActPars();
             case pplus, mminus -> scan();
-            default -> error(Errors.Message.DESIGN_FOLLOW);
+            default -> error(DESIGN_FOLLOW);
           }
         }
-        check(Token.Kind.semicolon);
+        check(semicolon);
       }
       case if_ -> {
         scan();
-        check(Token.Kind.lpar);
+        check(lpar);
         Condition();
-        check(Token.Kind.rpar);
+        check(rpar);
         Statement();
-        if (sym == Token.Kind.else_) {
+        if (sym == else_) {
           scan();
           Statement();
         }
       }
       case while_ -> {
         scan();
-        check(Token.Kind.lpar);
+        check(lpar);
         Condition();
-        check(Token.Kind.rpar);
+        check(rpar);
         Statement();
       }
       case break_ -> {
         scan();
-        check(Token.Kind.semicolon);
+        check(semicolon);
       }
       case return_ -> {
         scan();
         if (firstExpr.contains(sym)) {
           Expr();
         }
-        check(Token.Kind.semicolon);
+        check(semicolon);
       }
       case read -> {
         scan();
-        check(Token.Kind.lpar);
+        check(lpar);
         Designator();
-        check(Token.Kind.rpar);
-        check(Token.Kind.semicolon);
+        check(rpar);
+        check(semicolon);
       }
       case print -> {
         scan();
-        check(Token.Kind.lpar);
+        check(lpar);
         Expr();
-        if (sym == Token.Kind.comma) {
+        if (sym == comma) {
           scan();
-          check(Token.Kind.number);
+          check(number);
         }
-        check(Token.Kind.rpar);
-        check(Token.Kind.semicolon);
+        check(rpar);
+        check(semicolon);
       }
       case lbrace -> Block();
       case semicolon -> scan();
-      default -> error(Errors.Message.INVALID_STAT);
+      default -> error(INVALID_STAT);
     }
   }
 
   private void Expr() {
-    if (sym == Token.Kind.minus) {
+    if (sym == minus) {
       scan();
     }
     Term();
 
-    while (sym == Token.Kind.plus || sym == Token.Kind.minus) {
+    while (sym == plus || sym == minus) {
       Addop();
       Term();
     }
@@ -315,8 +316,7 @@ public final class Parser {
 
   private void Term() {
     Factor();
-    boolean isMulop = true;
-    while (isMulop) {
+    while (sym == times || sym == slash || sym == rem || sym == exp) {
       switch (sym) {
         case times, slash, rem -> {
           Mulop();
@@ -324,16 +324,15 @@ public final class Parser {
         }
         case exp -> {
           scan();
-          check(Token.Kind.number);
+          check(number);
         }
-        default -> isMulop = false;
       }
     }
   }
 
   private void Condition() {
     CondTerm();
-    while (sym == Token.Kind.or) {
+    while (sym == or) {
       scan();
       CondTerm();
     }
@@ -342,7 +341,7 @@ public final class Parser {
 
   private void CondTerm() {
     CondFact();
-    while (sym == Token.Kind.and) {
+    while (sym == and) {
       scan();
       CondFact();
     }
@@ -358,55 +357,55 @@ public final class Parser {
     switch (sym) {
       case ident -> {
         Designator();
-        if (sym == Token.Kind.lpar) {
+        if (sym == lpar) {
           ActPars();
         }
       }
       case new_ -> {
         scan();
-        check(Token.Kind.ident);
-        if (sym == Token.Kind.lbrack) {
+        check(ident);
+        if (sym == lbrack) {
           scan();
           Expr();
-          check(Token.Kind.rbrack);
+          check(rbrack);
         }
       }
       case lpar -> {
         scan();
         Expr();
-        check(Token.Kind.rpar);
+        check(rpar);
       }
       case number, charConst -> scan();
-      default -> error(Errors.Message.INVALID_FACT);
+      default -> error(INVALID_FACT);
     }
   }
 
   private void ActPars() {
-    check(Token.Kind.lpar);
+    check(lpar);
     if (firstExpr.contains(sym)) {
       Expr();
 
-      while (sym == Token.Kind.comma) {
+      while (sym == comma) {
         scan();
         Expr();
       }
     }
-    check(Token.Kind.rpar);
+    check(rpar);
   }
 
   private void Designator() {
-    check(Token.Kind.ident);
+    check(ident);
     boolean isDesignator = true;
     while (isDesignator) {
       switch (sym) {
         case period -> {
           scan();
-          check(Token.Kind.ident);
+          check(ident);
         }
         case lbrack -> {
           scan();
           Expr();
-          check(Token.Kind.rbrack);
+          check(rbrack);
         }
         default -> isDesignator = false;
       }
@@ -416,14 +415,14 @@ public final class Parser {
   private void Addop() {
     switch (sym) {
       case plus, minus -> scan();
-      default -> error(Errors.Message.ADD_OP);
+      default -> error(ADD_OP);
     }
   }
 
   private void Mulop() {
     switch (sym) {
       case times, slash, rem -> scan();
-      default -> error(Errors.Message.MUL_OP);
+      default -> error(MUL_OP);
     }
   }
 
