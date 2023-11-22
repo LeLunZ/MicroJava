@@ -264,9 +264,6 @@ public class Scanner {
       ch = (char) in.read();
 
       col++;
-      if (ch == EOF) {
-        return;
-      }
 
       if (ch == LF) {
         line++;
@@ -282,25 +279,26 @@ public class Scanner {
     int nested = 1;
 
     while (nested > 0) {
-      if (ch == EOF) {
-        error(t, Errors.Message.EOF_IN_COMMENT);
-        return;
-      } else if (ch == '/') {
-        nextCh();
-
-        if (ch == '*') {
-          nextCh();
-          nested++;
+      switch (ch) {
+        case EOF -> {
+          error(t, Errors.Message.EOF_IN_COMMENT);
+          return;
         }
-      } else if (ch == '*') {
-        nextCh();
-
-        if (ch == '/') {
+        case '/' -> {
           nextCh();
-          nested--;
+          if (ch == '*') {
+            nextCh();
+            nested++;
+          }
         }
-      } else {
-        nextCh();
+        case '*' -> {
+          nextCh();
+          if (ch == '/') {
+            nextCh();
+            nested--;
+          }
+        }
+        default -> nextCh();
       }
     }
   }
@@ -308,10 +306,10 @@ public class Scanner {
   public void readName(Token t) {
     StringBuilder sb = new StringBuilder();
 
-    while (isLetter(ch) || isDigit(ch) || ch == '_') {
+    do {
       sb.append(ch);
       nextCh();
-    }
+    } while (isLetter(ch) || isDigit(ch) || ch == '_');
 
     t.val = sb.toString();
     t.kind = KEYWORDS.getOrDefault(t.val, Token.Kind.ident);
@@ -320,10 +318,11 @@ public class Scanner {
   public void readNumber(Token t) {
     StringBuilder sb = new StringBuilder();
 
-    while (isDigit(ch)) {
+
+    do {
       sb.append(ch);
       nextCh();
-    }
+    } while (isDigit(ch));
 
     t.val = sb.toString();
     t.kind = Token.Kind.number;
