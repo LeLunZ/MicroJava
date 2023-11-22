@@ -1,26 +1,22 @@
 package ssw.mj.impl;
 
-import ssw.mj.Errors;
 import ssw.mj.Errors.Message;
 import ssw.mj.scanner.Token;
 
 import java.util.EnumSet;
 
-import static ssw.mj.scanner.Token.Kind.*;
 import static ssw.mj.Errors.Message.*;
+import static ssw.mj.scanner.Token.Kind.*;
 
 public final class Parser {
-
   /**
    * Maximum number of global variables per program
    */
   private static final int MAX_GLOBALS = 32767;
-
   /**
    * Maximum number of fields per class
    */
   private static final int MAX_FIELDS = 32767;
-
   /**
    * Maximum number of local variables per method
    */
@@ -30,6 +26,14 @@ public final class Parser {
   private static final EnumSet<Token.Kind> firstAssingop = EnumSet.of(assign, plusas, minusas, timesas, slashas, remas);
   private static final EnumSet<Token.Kind> firstExpr = EnumSet.of(minus, ident, number, charConst, new_, lpar);
   private static final EnumSet<Token.Kind> firstRelop = EnumSet.of(eql, neq, gtr, geq, lss, leq);
+  private static final EnumSet<Token.Kind> firstMulop = EnumSet.of(times, slash, rem);
+  private static final EnumSet<Token.Kind> followSymbolMeth = EnumSet.of(rbrace, eof);
+  private static final EnumSet<Token.Kind> followSymbolDecl = EnumSet.of(lbrace, eof);
+  private static final EnumSet<Token.Kind> followSymbolBlock = EnumSet.of(rbrace, eof);
+  private static final EnumSet<Token.Kind> recoverSymbolStat = EnumSet.of(if_, while_, break_, return_, read, print, semicolon, eof);
+  private static final EnumSet<Token.Kind> recoverSymbolDecl = EnumSet.of(final_, ident, class_, lbrace, semicolon, eof);
+  private static final EnumSet<Token.Kind> recoverSymbolMeth = EnumSet.of(void_, ident, eof);
+
   /**
    * According scanner
    */
@@ -42,6 +46,13 @@ public final class Parser {
    * According symbol table
    */
   public final Tab tab;
+  private final int ERROR_DISTANCE = 3;
+
+  // ===============================================
+  // TODO Exercise 4: Symbol table handling
+  // TODO Exercise 5-6: Code generation
+  // ===============================================
+  private int errDist = ERROR_DISTANCE;
   /**
    * Last recognized token;
    */
@@ -63,18 +74,6 @@ public final class Parser {
     la = new Token(none, 1, 1);
   }
 
-  // ===============================================
-  // TODO Exercise 3: Error recovery methods
-  // TODO Exercise 4: Symbol table handling
-  // TODO Exercise 5-6: Code generation
-  // ===============================================
-
-  // TODO Exercise 3: Error distance
-
-  // TODO Exercise 2 + Exercise 3: Sets to handle certain first, follow, and recover sets
-
-  // ---------------------------------
-
   /**
    * Reads ahead one symbol.
    */
@@ -82,6 +81,7 @@ public final class Parser {
     t = la;
     la = scanner.next();
     sym = la.kind;
+    errDist++;
   }
 
   /**
@@ -99,10 +99,10 @@ public final class Parser {
    * Adds error message to the list of errors.
    */
   public void error(Message msg, Object... msgParams) {
-    // TODO Exercise 3: Replace panic mode with error recovery (i.e., keep track of error distance)
-    // TODO Exercise 3: Hint: Replacing panic mode also affects scan() method
-    scanner.errors.error(la.line, la.col, msg, msgParams);
-    throw new Errors.PanicMode();
+    if (errDist >= ERROR_DISTANCE) {
+      scanner.errors.error(la.line, la.col, msg, msgParams);
+    }
+    errDist = 0;
   }
 
   /**
@@ -118,16 +118,20 @@ public final class Parser {
     check(program);
     check(ident);
 
-    while (sym == final_ || sym == ident || sym == class_) {
+    while (!followSymbolDecl.contains(sym)) {
       switch (sym) {
         case class_ -> ClassDecl();
         case ident -> VarDecl();
         case final_ -> ConstDecl();
+        default -> {
+          error(INVALID_DECL);
+          recoverDecl();
+        }
       }
     }
 
     check(lbrace);
-    while (sym == ident || sym == void_) {
+    while (!followSymbolMeth.contains(sym)) {
       MethodDecl();
     }
     check(rbrace);
@@ -137,7 +141,10 @@ public final class Parser {
     switch (sym) {
       case void_ -> scan();
       case ident -> Type();
-      default -> error(INVALID_METH_DECL);
+      default -> {
+        error(INVALID_METH_DECL);
+        recoverMethodDecl();
+      }
     }
 
 
@@ -206,7 +213,7 @@ public final class Parser {
 
   private void Block() {
     check(lbrace);
-    while (firstStatement.contains(sym)) {
+    while (!followSymbolBlock.contains(sym)) {
       Statement();
     }
     check(rbrace);
@@ -240,12 +247,12 @@ public final class Parser {
         if (firstAssingop.contains(sym)) {
           Assignop();
           Expr();
+        } else if (sym == lpar) {
+          ActPars();
+        } else if (sym == pplus || sym == mminus) {
+          scan();
         } else {
-          switch (sym) {
-            case lpar -> ActPars();
-            case pplus, mminus -> scan();
-            default -> error(DESIGN_FOLLOW);
-          }
+          error(DESIGN_FOLLOW);
         }
         check(semicolon);
       }
@@ -298,7 +305,10 @@ public final class Parser {
       }
       case lbrace -> Block();
       case semicolon -> scan();
-      default -> error(INVALID_STAT);
+      default -> {
+        error(INVALID_STAT);
+        recoverStat();
+      }
     }
   }
 
@@ -316,16 +326,13 @@ public final class Parser {
 
   private void Term() {
     Factor();
-    while (sym == times || sym == slash || sym == rem || sym == exp) {
-      switch (sym) {
-        case times, slash, rem -> {
-          Mulop();
-          Factor();
-        }
-        case exp -> {
-          scan();
-          check(number);
-        }
+    while (firstMulop.contains(sym) || sym == exp) {
+      if (sym == exp) {
+        scan();
+        check(number);
+      } else {
+        Mulop();
+        Factor();
       }
     }
   }
@@ -337,7 +344,6 @@ public final class Parser {
       CondTerm();
     }
   }
-
 
   private void CondTerm() {
     CondFact();
@@ -426,10 +432,25 @@ public final class Parser {
     }
   }
 
-  // ------------------------------------
+  private void recoverStat() {
+    do {
+      scan();
+    } while (!recoverSymbolStat.contains(sym));
+    errDist = 0;
+  }
 
-  // TODO Exercise 3: Error recovery methods: recoverDecl, recoverMethodDecl and recoverStat
+  private void recoverDecl() {
+    do {
+      scan();
+    } while (!recoverSymbolDecl.contains(sym));
+    if (sym == semicolon) scan();
+    errDist = 0;
+  }
 
-  // ====================================
-  // ====================================
+  private void recoverMethodDecl() {
+    do {
+      scan();
+    } while (!recoverSymbolMeth.contains(sym));
+    errDist = 0;
+  }
 }
