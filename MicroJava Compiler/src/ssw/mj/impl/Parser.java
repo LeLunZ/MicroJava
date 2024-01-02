@@ -2,6 +2,8 @@ package ssw.mj.impl;
 
 import ssw.mj.Errors.Message;
 import ssw.mj.scanner.Token;
+import ssw.mj.symtab.Obj;
+import ssw.mj.symtab.Struct;
 
 import java.util.EnumSet;
 
@@ -31,7 +33,7 @@ public final class Parser {
   private static final EnumSet<Token.Kind> followSymbolDecl = EnumSet.of(lbrace, eof);
   private static final EnumSet<Token.Kind> followSymbolBlock = EnumSet.of(rbrace, eof);
   private static final EnumSet<Token.Kind> recoverSymbolStat = EnumSet.of(if_, while_, break_, return_, read, print, semicolon, eof);
-  private static final EnumSet<Token.Kind> recoverSymbolDecl = EnumSet.of(final_, ident, class_, lbrace, semicolon, eof);
+  private static final EnumSet<Token.Kind> recoverSymbolDecl = EnumSet.of(final_, ident, class_, lbrace, eof);
   private static final EnumSet<Token.Kind> recoverSymbolMeth = EnumSet.of(void_, ident, eof);
 
   /**
@@ -118,6 +120,9 @@ public final class Parser {
     check(program);
     check(ident);
 
+    final Obj program = tab.insert(Obj.Kind.Prog, t.val, Tab.noType);
+    tab.openScope();
+
     while (!followSymbolDecl.contains(sym)) {
       switch (sym) {
         case class_ -> ClassDecl();
@@ -130,93 +135,179 @@ public final class Parser {
       }
     }
 
+    if (tab.curScope.nVars() > MAX_GLOBALS) {
+      error(TOO_MANY_GLOBALS);
+    }
+
     check(lbrace);
     while (!followSymbolMeth.contains(sym)) {
-      MethodDecl();
+      if (sym != void_ && sym != ident) {
+        error(INVALID_METH_DECL);
+        recoverMethodDecl();
+      } else {
+        MethodDecl();
+      }
     }
+
     check(rbrace);
+
+    program.locals = tab.curScope.locals();
+    tab.closeScope();
   }
 
   private void MethodDecl() {
+    Struct type = Tab.noType;
     switch (sym) {
       case void_ -> scan();
-      case ident -> Type();
+      case ident -> type = Type();
       default -> {
         error(INVALID_METH_DECL);
-        recoverMethodDecl();
+        scan();
       }
     }
 
 
     check(ident);
+
+    final String methodName = t.val;
+    final Obj meth = tab.insert(Obj.Kind.Meth, methodName, type);
+    meth.adr = code.pc;
+
     check(lpar);
+    tab.openScope();
+
     if (sym == ident) {
       FormPars();
     }
+    meth.nPars = tab.curScope.nVars();
 
     check(rpar);
+
+    if ("main".equals(methodName)) {
+      if (meth.nPars != 0) {
+        error(MAIN_WITH_PARAMS);
+      }
+      if (meth.type != Tab.noType) {
+        error(MAIN_NOT_VOID);
+      }
+    }
+
     while (sym == ident) {
       VarDecl();
     }
+
+    if (tab.curScope.nVars() > MAX_LOCALS) {
+      error(TOO_MANY_LOCALS);
+    }
+
     Block();
+
+    meth.locals = tab.curScope.locals();
+    tab.closeScope();
   }
 
-  void Type() {
+  private Struct Type() {
     check(ident);
+    Obj o = tab.find(t.val);
+    if (o.kind != Obj.Kind.Type) {
+      error(NO_TYPE);
+    }
+
+    Struct type = o.type;
     if (sym == lbrack) {
       scan();
       check(rbrack);
+      type = new Struct(type);
     }
+    return type;
   }
 
   private void ClassDecl() {
     check(class_);
     check(ident);
+
+    final Obj clazz = tab.insert(Obj.Kind.Type, t.val, new Struct(Struct.Kind.Class));
+
     check(lbrace);
+    tab.openScope();
+
     while (sym == ident) {
       VarDecl();
     }
+
+    if (tab.curScope.nVars() > MAX_FIELDS) {
+      error(TOO_MANY_FIELDS);
+    }
+    clazz.type.fields = tab.curScope.locals();
+
+    tab.closeScope();
     check(rbrace);
   }
 
   void ConstDecl() {
     check(final_);
-    Type();
+    Struct type = Type();
     check(ident);
+    final String constName = t.val;
     check(assign);
+
+    Obj constObj = tab.insert(Obj.Kind.Con, constName, type);
+
     switch (sym) {
-      case number, charConst -> scan();
+      case number -> {
+        if (type.kind != Struct.Kind.Int) {
+          error(CONST_TYPE);
+        }
+        scan();
+        constObj.val = t.numVal;
+      }
+      case charConst -> {
+        if (type.kind != Struct.Kind.Char) {
+          error(CONST_TYPE);
+        }
+        scan();
+        constObj.val = t.numVal;
+      }
       default -> error(CONST_DECL);
     }
     check(semicolon);
   }
 
   private void VarDecl() {
-    Type();
+    Struct type = Type();
     check(ident);
+
+    tab.insert(Obj.Kind.Var, t.val, type);
     while (sym == comma) {
       scan();
       check(ident);
+      tab.insert(Obj.Kind.Var, t.val, type);
     }
     check(semicolon);
   }
 
   private void FormPars() {
-    Type();
-    check(ident);
-    while (sym == comma) {
-      scan();
-      Type();
+    // changed to optimized variant
+    for (; ; ) {
+      Struct type = Type();
       check(ident);
+      tab.insert(Obj.Kind.Var, t.val, type);
+      if (sym != comma) {
+        break;
+      }
+      scan();
     }
   }
 
   private void Block() {
     check(lbrace);
+    tab.openScope();
+
     while (!followSymbolBlock.contains(sym)) {
       Statement();
     }
     check(rbrace);
+    tab.closeScope();
   }
 
   private void Assignop() {
@@ -443,7 +534,6 @@ public final class Parser {
     do {
       scan();
     } while (!recoverSymbolDecl.contains(sym));
-    if (sym == semicolon) scan();
     errDist = 0;
   }
 
