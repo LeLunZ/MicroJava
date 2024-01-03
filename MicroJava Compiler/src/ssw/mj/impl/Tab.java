@@ -33,7 +33,8 @@ public final class Tab {
   public Tab(Parser p) {
     parser = p;
 
-    curScope = new Scope(null);
+    openScope();
+    curLevel = 0;
 
     noObj = new Obj(Obj.Kind.Var, "$none", noType);
 
@@ -42,26 +43,27 @@ public final class Tab {
     insert(Obj.Kind.Type, "char", charType);
     insert(Obj.Kind.Con, "null", nullType);
 
-    // predefined methods
     chrObj = insert(Obj.Kind.Meth, "chr", charType);
+    ordObj = insert(Obj.Kind.Meth, "ord", intType);
+    lenObj = insert(Obj.Kind.Meth, "len", intType);
+
+
     openScope();
     insert(Obj.Kind.Var, "i", intType);
-    chrObj.nPars = 1;
     chrObj.locals = curScope.locals();
+    chrObj.nPars = chrObj.locals.size();
     closeScope();
 
-    ordObj = insert(Obj.Kind.Meth, "ord", intType);
     openScope();
     insert(Obj.Kind.Var, "ch", charType);
-    ordObj.nPars = 1;
     ordObj.locals = curScope.locals();
+    ordObj.nPars = ordObj.locals.size();
     closeScope();
 
-    lenObj = insert(Obj.Kind.Meth, "len", intType);
     openScope();
     insert(Obj.Kind.Var, "arr", new Struct(noType));
-    lenObj.nPars = 1;
     lenObj.locals = curScope.locals();
+    lenObj.nPars = lenObj.locals.size();
     closeScope();
 
     curLevel = -1;
